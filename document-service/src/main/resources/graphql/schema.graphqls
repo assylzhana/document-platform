@@ -1,0 +1,34 @@
+scalar DateTime
+
+type Doc {
+    id: String
+    title: String!
+    author: String!
+    contentPath: String!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    version: String!
+}
+
+input DocumentInput {
+    title: String!
+    author: String!
+    contentPath: String!
+    version: String!
+}
+
+type Query {
+    getDocumentById(id: String!): Doc
+    getAllDocuments: [Doc]
+}
+
+type Mutation {
+    createDocument(input: DocumentInput!): Doc
+    updateDocument(id: String!, input: DocumentInput!): Doc
+    deleteDocument(id: String!): Boolean
+}
+
+schema {
+    query: Query
+    mutation: Mutation
+}
