@@ -1,31 +1,23 @@
 scalar DateTime
+scalar Upload
 
-type Doc {
+type DocumentMetadata {
     id: String
     title: String!
     author: String!
     contentPath: String!
     createdAt: DateTime!
     updatedAt: DateTime!
-    version: String!
-}
-
-input DocumentInput {
-    title: String!
-    author: String!
-    contentPath: String!
-    version: String!
+    documentType: String!
 }
 
 type Query {
-    getDocumentById(id: String!): Doc
-    getAllDocuments: [Doc]
+    getDocumentById(id: String!): DocumentMetadata
+    getAllDocuments: [DocumentMetadata]
 }
 
 type Mutation {
-    createDocument(input: DocumentInput!): Doc
-    updateDocument(id: String!, input: DocumentInput!): Doc
-    deleteDocument(id: String!): Boolean
+    createDocument(file: Upload!, title: String!, author: String!, documentType: String!): DocumentMetadata
 }
 
 schema {

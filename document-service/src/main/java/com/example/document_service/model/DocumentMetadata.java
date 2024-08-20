@@ -14,14 +14,13 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor
 @Builder
 @Data
-public class Doc {
+public class DocumentMetadata {
     @Id
     private String id;
     private String title;
     private String author;
     private String contentPath;
-    private OffsetDateTime createdAt = OffsetDateTime.now();
-    private OffsetDateTime updatedAt = OffsetDateTime.now();
-    private String version;
-
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
+    private String documentType;
 }
