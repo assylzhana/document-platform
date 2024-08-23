@@ -26,13 +26,13 @@ public class VerificationToken {
     public VerificationToken(User user, String token) {
         this.user = user;
         this.token = token;
-        this.expiryDate = calculateExpiryDate(24 * 60);
+        this.expiryDate = calculateExpiryDate();
     }
 
-    private Date calculateExpiryDate(int expiryTimeInMinutes) {
+    private Date calculateExpiryDate() {
         Calendar cal = Calendar.getInstance();
         cal.setTime(new Date());
-        cal.add(Calendar.MINUTE, expiryTimeInMinutes);
+        cal.add(Calendar.MINUTE, 1440);
         return new Date(cal.getTime().getTime());
     }
 }

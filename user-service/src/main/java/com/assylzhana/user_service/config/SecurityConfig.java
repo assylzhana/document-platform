@@ -21,20 +21,24 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(
-                        req->req.requestMatchers( "/auth**")
+                        req->req.requestMatchers( "/auth/**")
                                 .permitAll()
-                                .requestMatchers("/admin_only/**").hasAuthority("ADMIN")
+                                .requestMatchers("/admin/**").hasAuthority("ADMIN")
                                 .requestMatchers("/us/**").authenticated()
                                 .anyRequest()
-                                .authenticated())
-                .oauth2Login(oauth2Login ->
-                        oauth2Login
-                                .userInfoEndpoint(userInfoEndpoint ->
-                                        userInfoEndpoint.userService(customOAuth2UserService)
-                                )
-                                .defaultSuccessUrl("/home")
-                                .failureUrl("/login?error")
-                );
+                                .authenticated()
+                )
+                .logout(logout -> logout
+                        .logoutSuccessUrl("/auth/logout")
+                        .permitAll()
+                )
+                .oauth2Login(oauth2 -> oauth2
+                        .loginPage("/auth/sign-in")
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService))
+                        .defaultSuccessUrl("/user/profile")
+                        .failureUrl("/auth/sign-in?error=true")
+                );;
 
         return http.build();
     }
