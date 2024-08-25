@@ -5,6 +5,7 @@ import com.assylzhana.user_service.model.User;
 import com.assylzhana.user_service.service.TokenService;
 import com.assylzhana.user_service.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -52,13 +53,25 @@ public class AuthController {
     }
 
     @PostMapping("/sign-in")
-    public ResponseEntity<String> login(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<String> login(@RequestBody LoginRequest loginRequest, HttpSession session) {
         try {
             String token = userService.login(loginRequest.getEmail(), loginRequest.getPassword());
             tokenService.saveToken(token, loginRequest.getEmail());
+            session.setAttribute("userToken", token);
+            session.setAttribute("userEmail", loginRequest.getEmail());
             return ResponseEntity.ok("Your token: " + token);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(401).body(e.getMessage());
         }
     }
+    @GetMapping("/session-info")
+    public ResponseEntity<String> getSessionInfo(HttpSession session) {
+        String token = (String) session.getAttribute("userToken");
+        String email = (String) session.getAttribute("userEmail");
+        if (token != null && email != null) {
+            return ResponseEntity.ok("User token: " + token + ", User email: " + email);
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("No session data found");
+    }
+
 }

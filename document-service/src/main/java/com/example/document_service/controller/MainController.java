@@ -1,11 +1,14 @@
 package com.example.document_service.controller;
 
+import com.example.document_service.dto.UserDto;
 import com.example.document_service.model.DocumentMetadata;
 import com.example.document_service.service.DocumentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -20,9 +23,15 @@ public class MainController {
 
     @PostMapping
     public ResponseEntity<String> createDocument(@RequestParam("file") MultipartFile multipartFile,
-                                                 @RequestParam(value = "title", required = false) String title,
-                                                 @RequestParam(value = "author", required = false) String author) {
+                                                 @RequestParam(value = "title", required = false) String title) {
         try {
+            String author = "";
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof UserDto userDto) {
+                author = userDto.getEmail();
+            }
+
             String fileExtension = "";
             if (multipartFile.getOriginalFilename() != null && multipartFile.getOriginalFilename().contains(".")) {
                 String[] parts = multipartFile.getOriginalFilename().split("\\.");
@@ -38,7 +47,7 @@ public class MainController {
             String filePath = service.uploadFileToMinio(renamedFile);
             DocumentMetadata documentMetadata = DocumentMetadata.builder()
                     .title(title != null ? title : multipartFile.getOriginalFilename().split("\\.")[0])
-                    .author(author != null ? author : "someone")
+                    .author(author)
                     .contentPath(filePath)
                     .documentType(fileExtension)
                     .build();
