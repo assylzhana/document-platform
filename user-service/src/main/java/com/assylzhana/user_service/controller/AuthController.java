@@ -35,8 +35,11 @@ public class AuthController {
         }
         String token = authHeader.substring(7);
         tokenService.blacklistToken(token);
+        tokenService.removeToken(token);
+        request.getSession().invalidate();
         return ResponseEntity.ok("Successfully logged out");
     }
+
 
     @GetMapping("/confirm")
     public ResponseEntity<String> confirmUser(@RequestParam("token") String token) {
@@ -52,6 +55,7 @@ public class AuthController {
     public ResponseEntity<String> login(@RequestBody LoginRequest loginRequest) {
         try {
             String token = userService.login(loginRequest.getEmail(), loginRequest.getPassword());
+            tokenService.saveToken(token, loginRequest.getEmail());
             return ResponseEntity.ok("Your token: " + token);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(401).body(e.getMessage());

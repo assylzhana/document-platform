@@ -8,7 +8,6 @@ import com.assylzhana.user_service.repository.VerificationTokenRepository;
 import com.assylzhana.user_service.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,13 +16,15 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class UserService {
+public class UserService{
 
     private final UserRepository userRepository;
 
     private final VerificationTokenRepository tokenRepository;
 
     private final EmailService emailService;
+
+    private final TokenService tokenService;
 
     private final PasswordEncoder passwordEncoder;
 
@@ -68,20 +69,16 @@ public class UserService {
         if (!user.isEnabled()) {
             throw new IllegalArgumentException("Account not verified. Please check your email.");
         }
+
         return jwtUtil.generateToken(user.getUsername());
     }
 
     public User getCurrentUser() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-
-        if (principal instanceof UserDetails) {
-            String username = ((UserDetails) principal).getUsername();
-            return userRepository.findByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + username));
-        } else {
-            throw new RuntimeException("No authenticated user found");
-        }
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        String email = authentication.getName();
+        return userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
+
     public void deleteAccount() {
         User user = getCurrentUser();
         userRepository.delete(user);

@@ -26,7 +26,7 @@ public class UserController {
         User currentUser = userService.getCurrentUser();
         return ResponseEntity.ok(currentUser);
     }
-    @DeleteMapping("/account")
+    @DeleteMapping()
     public ResponseEntity<String> deleteAccount() {
         try {
             userService.deleteAccount();
