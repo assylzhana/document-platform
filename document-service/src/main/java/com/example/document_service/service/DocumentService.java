@@ -1,5 +1,7 @@
 package com.example.document_service.service;
 
+import com.example.document_service.dto.Permission;
+import com.example.document_service.dto.UserDto;
 import com.example.document_service.exception.MinioUploadException;
 import com.example.document_service.model.DocumentMetadata;
 import com.example.document_service.repository.DocumentRepository;
@@ -11,12 +13,18 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +36,10 @@ public class DocumentService {
 
     @Value("${minio.bucket-name}")
     private String bucketName;
+
+    private final KafkaTemplate<String, Permission> kafkaTemplate;
+    private CountDownLatch latch = new CountDownLatch(1);
+    private AtomicReference<String> permissionResponse = new AtomicReference<>();
 
     public List<DocumentMetadata> getAllDocuments() {
         return documentRepository.findAll();
@@ -45,16 +57,7 @@ public class DocumentService {
         return documentRepository.save(documentMetadata);
     }
 
-    public void deleteDocument(String id) {
-        try {
-            DocumentMetadata document = documentRepository.findById(id)
-                    .orElseThrow(() -> new NotFoundException("Document not found"));
-            deleteFileFromMinio(document.getContentPath());
-            documentRepository.deleteById(id);
-        } catch (DataAccessException e) {
-            throw new RuntimeException("Error deleting document with id " + id, e);
-        }
-    }
+
 
 
     public String uploadFileToMinio(MultipartFile file) {
@@ -63,7 +66,8 @@ public class DocumentService {
             if (fileName == null) {
                 throw new RuntimeException("File name is missing");
             }
-            String filePath = bucketName + "/" + fileName;
+            String userId = getCurrentUserId();
+            String filePath = bucketName + "/" + userId + "/" + fileName;
 
             minioClient.putObject(
                     PutObjectArgs.builder()
@@ -126,13 +130,37 @@ public class DocumentService {
 
     public DocumentMetadata updateDocument(String id, DocumentMetadata documentMetadata) {
         try {
+            String userId = getCurrentUserId();
             DocumentMetadata document = documentRepository.findById(id)
                     .orElseThrow(() -> new NotFoundException("Document not found"));
-            String old = bucketName+"/" + document.getTitle() + "." + document.getDocumentType();
+
+            Permission event = new Permission();
+            event.setDocumentId(id);
+            event.setUserEmail(userId);
+            event.setOwnerEmail(document.getAuthor());
+            event.setAction("UPDATE");
+
+            kafkaTemplate.send("permission-check", event);
+
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Error waiting for permission response", e);
+            }
+
+            String response = permissionResponse.get();
+            if (response.equals("false")) {
+                throw new RuntimeException("You do not have permission to edit this document.");
+            }
+            latch = new CountDownLatch(1);
+            permissionResponse.set(null);
+
+            String old = bucketName+"/" + document.getAuthor()+ "/" + document.getTitle() + "." + document.getDocumentType();
             if (documentMetadata.getTitle() != null) {
                 document.setTitle(documentMetadata.getTitle());
-                document.setContentPath(bucketName + "/" + document.getTitle() +"."+ document.getDocumentType());
-                renameFileInMinio(bucketName, old, (bucketName+"/"+documentMetadata.getTitle()+"."+document.getDocumentType()));
+                document.setContentPath(bucketName + "/"  +document.getAuthor()+ "/"+ document.getTitle() +"."+ document.getDocumentType());
+                renameFileInMinio(bucketName, old, (bucketName+"/"+ document.getAuthor()+ "/"+documentMetadata.getTitle()+"."+document.getDocumentType()));
             }
             if (documentMetadata.getAuthor() != null) {
                 document.setAuthor(documentMetadata.getAuthor());
@@ -142,6 +170,57 @@ public class DocumentService {
         } catch (DataAccessException e) {
             throw new RuntimeException("Error updating document with id " + id, e);
         }
+    }
+
+    public void deleteDocument(String id) {
+        try {
+            String userId = getCurrentUserId();
+            DocumentMetadata document = documentRepository.findById(id)
+                    .orElseThrow(() -> new NotFoundException("Document not found"));
+
+            Permission event = new Permission();
+            event.setDocumentId(id);
+            event.setUserEmail(userId);
+            event.setOwnerEmail(document.getAuthor());
+            event.setAction("UPDATE");
+
+            kafkaTemplate.send("permission-check", event);
+
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Error waiting for permission response", e);
+            }
+
+            String response = permissionResponse.get();
+            if (response.equals("false")) {
+                throw new RuntimeException("You do not have permission to edit this document.");
+            }
+            latch = new CountDownLatch(1);
+            permissionResponse.set(null);
+
+            deleteFileFromMinio(document.getContentPath());
+            documentRepository.deleteById(id);
+        } catch (DataAccessException e) {
+            throw new RuntimeException("Error deleting document with id " + id, e);
+        }
+    }
+
+    @KafkaListener(topics = "permission-response")
+    public void onPermissionResponse(String event) {
+        log.warn(event);
+        permissionResponse.set(event);
+        latch.countDown();
+    }
+
+
+    private String getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserDto userDto) {
+            return userDto.getEmail();
+        }
+        throw new RuntimeException("User is not authenticated");
     }
 
     @SneakyThrows
@@ -172,5 +251,17 @@ public class DocumentService {
             log.error("MinIO Error: {}", e.errorResponse().message(), e);
             throw new RuntimeException("MinIO Error: " + e.errorResponse().message(), e);
         }
+    }
+
+    public boolean existsById(String id) {
+        return documentRepository.findById(id).isPresent();
+    }
+
+    private final KafkaTemplate<String, String> kafkaTemplate1;
+
+    @KafkaListener(topics = "check-doc-existence-request")
+    public void checkDocExistence(String id) {
+        boolean exists = existsById(id);
+        kafkaTemplate1.send("check-doc-existence-response", id + ":" + exists);
     }
 }

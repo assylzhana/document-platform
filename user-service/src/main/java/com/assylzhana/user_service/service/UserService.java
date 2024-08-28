@@ -24,14 +24,15 @@ public class UserService{
 
     private final EmailService emailService;
 
-    private final TokenService tokenService;
-
     private final PasswordEncoder passwordEncoder;
 
     private final JwtUtil jwtUtil;
 
     public boolean existsByEmail(String email) {
         return userRepository.findByEmail(email).isPresent();
+    }
+    public boolean existsByUsername(String username) {
+        return userRepository.findByUsername(username).isPresent();
     }
 
     public User findByEmail(String email) {
