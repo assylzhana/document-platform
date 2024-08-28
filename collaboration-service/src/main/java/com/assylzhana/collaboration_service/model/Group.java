@@ -16,6 +16,8 @@ public class Group {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String name;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "group_emails", joinColumns = @JoinColumn(name = "group_id"))
     @Column(name = "email",unique = true)

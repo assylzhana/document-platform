@@ -38,6 +38,7 @@ public class SecurityConfig {
                                         "/public"
                                 ).permitAll()
                                 .requestMatchers(HttpMethod.POST, "/group/create").hasAuthority("ROLE_ADMIN")
+                                .requestMatchers(HttpMethod.PUT, "/group/{id}").hasAuthority("ROLE_ADMIN")
                                 .anyRequest().authenticated()
                 )
                 .sessionManagement(sessionManagement ->

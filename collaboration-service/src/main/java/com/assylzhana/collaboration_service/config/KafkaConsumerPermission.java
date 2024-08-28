@@ -61,4 +61,5 @@ public class KafkaConsumerPermission {
         factory.setConsumerFactory(consumerFactoryString());
         return factory;
     }
+
 }

@@ -1,5 +1,6 @@
 package com.assylzhana.collaboration_service.service;
 
+import com.assylzhana.collaboration_service.dto.Emails;
 import com.assylzhana.collaboration_service.dto.Permission;
 import com.assylzhana.collaboration_service.dto.PermissionResponse;
 import com.assylzhana.collaboration_service.model.Group;
@@ -27,7 +28,7 @@ public class GroupService {
 
 
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final KafkaTemplate<String, PermissionResponse> kafkaTemplate1;
+    private final KafkaTemplate<String, Emails> kafkaTemplate1;
     private final ConcurrentMap<String, CompletableFuture<Boolean>> futures = new ConcurrentHashMap<>();
 
     @KafkaListener(topics = "permission-check")
@@ -60,7 +61,7 @@ public class GroupService {
         return future;
     }
 
-    @KafkaListener(topics = "check-user-existence-response")
+    @KafkaListener(topics = "check-user-existence-response", containerFactory = "kafkaListenerContainerFactoryString")
     public void handleUserExistenceResponse(String message) {
         String[] parts = message.split(":");
         String email = parts[0];
@@ -79,7 +80,7 @@ public class GroupService {
         return future;
     }
 
-    @KafkaListener(topics = "check-doc-existence-response")
+    @KafkaListener(topics = "check-doc-existence-response", containerFactory = "kafkaListenerContainerFactoryString")
     public void handleDocExistenceResponse(String message) {
         String[] parts = message.split(":");
         String id = parts[0];
@@ -91,9 +92,14 @@ public class GroupService {
         }
     }
 
+
+
     @Transactional
     public void createGroup(Group group) throws ExecutionException, InterruptedException {
         List<String> emails = group.getEmails();
+        Emails emails1 = Emails.builder()
+                .emails(emails)
+                .groupName(group.getName()).build();
         List<String> documents = group.getDocuments();
         if (emails == null) {
             throw new RuntimeException("Usernames list is null");
@@ -115,6 +121,32 @@ public class GroupService {
             }
         }
         groupRepository.save(group);
+        kafkaTemplate1.send("emails", emails1);
     }
 
+    @Transactional
+    public void editGroup(Long groupId, List<String> newEmails, List<String> newDocuments) throws ExecutionException, InterruptedException {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new RuntimeException("Group not found with id: " + groupId));
+        List<String> existingEmails = group.getEmails();
+        List<String> existingDocuments = group.getDocuments();
+        if (newEmails != null) {
+            for (String email : newEmails) {
+                if (!checkUserExistence(email).get()) {
+                    throw new RuntimeException("User " + email + " does not exist");
+                }
+            }
+            existingEmails.addAll(newEmails);
+        }
+        if (newDocuments != null) {
+            for (String id : newDocuments) {
+                if (!checkDocExistence(id).get()) {
+                    throw new RuntimeException("Doc " + id + " does not exist");
+                }
+            }
+            existingDocuments.addAll(newDocuments);
+
+        }
+        groupRepository.save(group);
+    }
 }

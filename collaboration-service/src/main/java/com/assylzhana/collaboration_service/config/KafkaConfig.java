@@ -1,5 +1,6 @@
 package com.assylzhana.collaboration_service.config;
 
+import com.assylzhana.collaboration_service.dto.Emails;
 import com.assylzhana.collaboration_service.dto.PermissionResponse;
 import com.assylzhana.collaboration_service.model.Group;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -62,5 +63,20 @@ public class KafkaConfig {
     public KafkaTemplate<String, PermissionResponse> permissionKafkaTemplate() {
         return new KafkaTemplate<>(permissionProducerFactory());
     }
+
+    @Bean
+    public ProducerFactory<String, Emails> emailsProducerFactory() {
+        Map<String, Object> configProps = new HashMap<>();
+        configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        return new DefaultKafkaProducerFactory<>(configProps);
+    }
+
+    @Bean
+    public KafkaTemplate<String, Emails> emailsKafkaTemplate() {
+        return new KafkaTemplate<>(emailsProducerFactory());
+    }
+
 }
 

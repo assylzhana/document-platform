@@ -182,7 +182,7 @@ public class DocumentService {
             event.setDocumentId(id);
             event.setUserEmail(userId);
             event.setOwnerEmail(document.getAuthor());
-            event.setAction("UPDATE");
+            event.setAction("DELETE");
 
             kafkaTemplate.send("permission-check", event);
 
